@@ -1,4 +1,5 @@
 {% load i18n %}
+{% if request.user.is_authenticated %}
 <div class="updownvotes" x:id="{{object.id}}" x:model-name="{{model_name}}">
     <div class="vote-buttons">
         <ul>
@@ -57,3 +58,4 @@
     </div>
     {% endcomment %}
 </div>
+{% endif %}
