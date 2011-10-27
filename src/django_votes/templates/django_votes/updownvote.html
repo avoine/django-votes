@@ -1,14 +1,14 @@
 {% load i18n %}
 {% if request.user.is_authenticated %}
-<div class="updownvotes" x:id="{{object.id}}" x:model-name="{{model_name}}">
+<div class="updownvotes" x:id="{{object.id}}" x:model-name="{{object.votes.model.get_model_name}}">
     <div class="vote-buttons">
         <ul>
             <li><a href="#" class="vote-up" x:url="{% url votes_vote_up %}">
                 <img src="{{ STATIC_URL }}django_votes/img/vote-up.png"
-                    alt="{% trans "Vote up" %}" /></a> {{up_votes}}</li>
+                    alt="{% trans "Vote up" %}" /></a> {{object.up_votes}}</li>
             <li><a href="#" class="vote-down" x:url="{% url votes_vote_down %}">
                 <img src="{{ STATIC_URL }}django_votes/img/vote-down.png"
-                    alt="{% trans "Vote down" %}" /></a> {{down_votes}}</li>
+                    alt="{% trans "Vote down" %}" /></a> {{object.down_votes}}</li>
         </ul>
     </div>
     <div style="clear:both;"></div>
