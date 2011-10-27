@@ -27,24 +27,7 @@ class UpDownVoteNode(VoteNode):
     def render(self, context):
         object = self.get_info(context)
 
-        total_votes = self.model.objects.filter(object__id=object.id).count()
-
-        up_votes = self.model.objects.filter(object__id=object.id,
-                                             value=1).count()
-
-        down_votes = self.model.objects.filter(object__id=object.id,
-                                               value= -1).count()
-
-        up_pct = (float(up_votes) / float(total_votes) if total_votes else 0) * 98
-        down_pct = (float(down_votes) / float(total_votes) if total_votes else 0) * 98
-
-        dictionary = {'object': object,
-                      'model_name': self.model_name,
-                      'up_pct': up_pct,
-                      'down_pct': down_pct,
-                      'up_votes': up_votes,
-                      'down_votes': down_votes,
-                      'total_votes': total_votes}
+        dictionary = {'object': object}
 
         return render_to_string('django_votes/updownvote.html', dictionary, context_instance=context)
 

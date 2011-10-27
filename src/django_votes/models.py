@@ -2,6 +2,7 @@ from django.db import models
 from django.db.models.base import ModelBase
 from django.utils.translation import (ugettext_lazy as _, ugettext)
 from django.contrib.auth.models import User
+from django.db.models.loading import get_model
 
 _vote_models = {}
 
@@ -19,10 +20,68 @@ class VotesField(object):
     def contribute_to_class(self, cls, name):
         self._name = name
 
-        descriptor = self._create_Vote_model(cls)
-        setattr(cls, self._name, descriptor)
+        models.signals.class_prepared.connect(self.finalize, sender=cls)
+
+    def finalize(self, sender, **kwargs):
+        descriptor = self._create_Vote_model(sender)
+        setattr(sender, self._name, descriptor)
+        self._add_methods(sender)
 
     def _create_Vote_model(self, model):
+        class VoteSummaryMeta(ModelBase):
+            """
+            Make every VoteSummary model have their own name/table.
+            """
+            def __new__(c, name, bases, attrs):
+                # Rename class
+                name = '%sVoteSummary' % model._meta.object_name
+                verbose_name = '%s Vote Summary' % model._meta.object_name
+                verbose_name_plural = '%s Vote Summaries' % model._meta.object_name
+
+                # This attribute is required for a model to function properly in Django.
+                attrs['__module__'] = model.__module__
+
+                vote_summary_model = ModelBase.__new__(c, name, bases, attrs)
+
+                return vote_summary_model
+
+        class VoteSummary(models.Model):
+            """
+            Vote Summary model
+            """
+
+            __metaclass__ = VoteSummaryMeta
+
+            object = models.ForeignKey(model, verbose_name=_('object'))
+            down_votes = models.PositiveIntegerField(default=0,
+                                                     verbose_name=_('down votes'))
+            down_pct = models.FloatField(default=0,
+                                         verbose_name=_('percent down votes'))
+            up_votes = models.PositiveIntegerField(default=0,
+                                                   verbose_name=_('up votes'))
+            up_pct = models.FloatField(default=0,
+                                       verbose_name=_('percent up votes'))
+            total_votes = models.PositiveIntegerField(default=0,
+                                                      verbose_name=_('total votes'))
+            created_on = models.DateTimeField(auto_now_add=True, db_index=True,
+                                              verbose_name=_('created on'),
+                                              editable=False)
+            updated_on = models.DateTimeField(auto_now=True, db_index=True,
+                                              verbose_name=_('updated on'),
+                                              editable=False)
+
+            class Meta:
+                ordering = ('object',)
+
+            def __unicode__(self):
+                return _('%s has %s down votes and %s up votes') % (self.object,
+                                                                    self.down_votes,
+                                                                    self.up_votes)
+
+            @classmethod
+            def get_model_name(self):
+                return '%s.%s' % (self._meta.app_label, self._meta.object_name)
+
         class VoteMeta(ModelBase):
             """
             Make every Vote model have their own name/table.
@@ -52,7 +111,8 @@ class VotesField(object):
 
             voter = models.ForeignKey(User, verbose_name=_('voter'))
             value = models.IntegerField(default=1, verbose_name=_('value'))
-            date = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name=_('voted on'))
+            date = models.DateTimeField(auto_now_add=True, db_index=True,
+                                        verbose_name=_('voted on'))
             object = models.ForeignKey(model, verbose_name=_('object'))
 
             class Meta:
@@ -69,6 +129,23 @@ class VotesField(object):
             def get_model_name(self):
                 return '%s.%s' % (self._meta.app_label, self._meta.object_name)
 
+            @classmethod
+            def get_summary(self):
+                return VoteSummary
+
+            def save(self, *args, **kwargs):
+                summary = self.get_summary()
+                record, __ = summary.objects.get_or_create(object=self.object)
+                record.total_votes += 1
+                if self.value == 1:
+                    record.up_votes += 1
+                if self.value == -1:
+                    record.down_votes += 1
+                record.up_pct = (float(record.up_votes) / float(record.total_votes)) * 100
+                record.down_pct = (float(record.down_votes) / float(record.total_votes)) * 100
+                record.save()
+                super(Vote, self).save(*args, **kwargs)
+
 
         class VoteFieldDescriptor(object):
             def __init__(self):
@@ -83,4 +160,76 @@ class VotesField(object):
                 else:
                     return Vote.objects
 
+        self._votes_model = Vote
+        self._vote_summary_model = VoteSummary
         return VoteFieldDescriptor()
+
+    def _add_methods(self, model):
+        Vote = self._votes_model
+        VoteSummary = self._vote_summary_model
+
+        model.vote_summary = VoteSummary
+
+        def down_votes(self):
+            sum, created = VoteSummary.objects.get_or_create(object=self)
+
+            if created:
+                count = Vote.objects.filter(object=self,
+                                            value= -1).count()
+                sum.down_pct = count
+                sum.save()
+
+            return sum.down_votes
+
+        model.down_votes = property(down_votes)
+
+        def down_pct(self):
+            sum, created = VoteSummary.objects.get_or_create(object=self)
+
+            if created:
+                q = Vote.objects.filter(object=self)
+                total = q.count()
+                down = q.filter(value= -1).count()
+
+                sum.down_pct = 0 if not total else (float(down) / float(total)) * 100
+                sum.save()
+
+            return sum.down_pct
+
+        def up_votes(self):
+            sum, created = VoteSummary.objects.get_or_create(object=self)
+
+            if created:
+                count = Vote.objects.filter(object=self,
+                                            value=1).count()
+                sum.up_votes = count
+                sum.save()
+
+            return sum.up_votes
+
+        model.up_votes = property(up_votes)
+
+        def up_pct(self):
+            sum, created = VoteSummary.objects.get_or_create(object=self)
+
+            if created:
+                q = Vote.objects.filter(object=self)
+                total = q.count()
+                up = q.filter(value=1).count()
+
+                sum.up_pct = 0 if not total else (float(up) / float(total)) * 100
+                sum.save()
+
+            return sum.up_pct
+
+        def total_votes(self):
+            sum, created = VoteSummary.objects.get_or_create(object=self)
+
+            if created:
+                count = Vote.objects.filter(object=self).count()
+                sum.total_votes = count
+                sum.save()
+
+            return sum.total_votes
+
+        model.total_votes = property(total_votes)
