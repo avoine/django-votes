@@ -4,7 +4,7 @@ from django.utils.translation import (ugettext_lazy as _, ugettext)
 from django.contrib.auth.models import User
 from django.db.models.loading import get_model
 
-_vote_models = {}
+_vote_models = { }
 
 class VotesField(object):
     """
@@ -19,7 +19,6 @@ class VotesField(object):
 
     def contribute_to_class(self, cls, name):
         self._name = name
-
         models.signals.class_prepared.connect(self.finalize, sender=cls)
 
     def finalize(self, sender, **kwargs):
@@ -35,8 +34,6 @@ class VotesField(object):
             def __new__(c, name, bases, attrs):
                 # Rename class
                 name = '%sVoteSummary' % model._meta.object_name
-                verbose_name = '%s Vote Summary' % model._meta.object_name
-                verbose_name_plural = '%s Vote Summaries' % model._meta.object_name
 
                 # This attribute is required for a model to function properly in Django.
                 attrs['__module__'] = model.__module__
@@ -55,14 +52,8 @@ class VotesField(object):
             object = models.ForeignKey(model, verbose_name=_('object'))
             down_votes = models.PositiveIntegerField(default=0,
                                                      verbose_name=_('down votes'))
-            down_pct = models.FloatField(default=0,
-                                         verbose_name=_('percent down votes'))
             up_votes = models.PositiveIntegerField(default=0,
                                                    verbose_name=_('up votes'))
-            up_pct = models.FloatField(default=0,
-                                       verbose_name=_('percent up votes'))
-            total_votes = models.PositiveIntegerField(default=0,
-                                                      verbose_name=_('total votes'))
             created_on = models.DateTimeField(auto_now_add=True, db_index=True,
                                               verbose_name=_('created on'),
                                               editable=False)
@@ -70,8 +61,23 @@ class VotesField(object):
                                               verbose_name=_('updated on'),
                                               editable=False)
 
+            @property
+            def total_votes(self):
+                return self.up_votes + self.down_votes
+
+
+            @property
+            def up_pct(self):
+                return float(self.up_votes) * 100 / self.total_votes
+
+            @property
+            def down_pct(self):
+                return float(self.down_votes) * 100 / self.total_votes
+
             class Meta:
                 ordering = ('object',)
+                verbose_name = '%s Vote Summary' % model._meta.object_name
+                verbose_name_plural = '%s Vote Summaries' % model._meta.object_name
 
             def __unicode__(self):
                 return _('%s has %s down votes and %s up votes') % (self.object,
@@ -89,8 +95,6 @@ class VotesField(object):
             def __new__(c, name, bases, attrs):
                 # Rename class
                 name = '%sVote' % model._meta.object_name
-                verbose_name = '%s Vote' % model._meta.object_name
-                verbose_name_plural = '%s Votes' % model._meta.object_name
 
                 # This attribute is required for a model to function properly in Django.
                 attrs['__module__'] = model.__module__
@@ -117,12 +121,15 @@ class VotesField(object):
 
             class Meta:
                 ordering = ('date',)
+                verbose_name = '%s Vote' % model._meta.object_name
+                verbose_name_plural = '%s Votes' % model._meta.object_name
 
             def __unicode__(self):
-                values = {'voter': self.voter.username,
-                          'like': _('likes') if self.value > 0 else _('hates'),
-                          'object': self.object}
-
+                values = {
+                            'voter': (self.voter.username if self.voter_id else 'Nobody'),
+                            'like': ugettext('likes') if self.value > 0 else ugettext('does not like'),
+                            'object': self.object_id if self.object_id else 'Nothing'
+                          }
                 return "%(voter)s %(like)s %(object)s" % values
 
             @classmethod
@@ -130,27 +137,25 @@ class VotesField(object):
                 return '%s.%s' % (self._meta.app_label, self._meta.object_name)
 
             @classmethod
-            def get_summary(self):
+            def get_summary_model(self):
                 return VoteSummary
 
             def save(self, *args, **kwargs):
-                summary = self.get_summary()
-                record, __ = summary.objects.get_or_create(object=self.object)
-                record.total_votes += 1
-                if self.value == 1:
-                    record.up_votes += 1
-                if self.value == -1:
-                    record.down_votes += 1
-                record.up_pct = (float(record.up_votes) / float(record.total_votes)) * 100
-                record.down_pct = (float(record.down_votes) / float(record.total_votes)) * 100
-                record.save()
+                # First save the vote
                 super(Vote, self).save(*args, **kwargs)
 
+                # Now update the summary
+                summary = self.object.vote_summary
+
+                if self.value == 1:
+                    summary.up_votes += 1
+
+                if self.value == -1:
+                    summary.down_votes += 1
+
+                summary.save()
 
         class VoteFieldDescriptor(object):
-            def __init__(self):
-                pass
-
             def __get__(self, obj, objtype):
                 """
                 Return the related manager for the Votes.
@@ -165,71 +170,23 @@ class VotesField(object):
         return VoteFieldDescriptor()
 
     def _add_methods(self, model):
+        """
+        'model' is the Django Model who got the VotesField.
+        Here we add some additional methods.
+        """
         Vote = self._votes_model
         VoteSummary = self._vote_summary_model
 
-        model.vote_summary = VoteSummary
-
-        def down_votes(self):
-            sum, created = VoteSummary.objects.get_or_create(object=self)
+        def summary(self):
+            s, created = VoteSummary.objects.get_or_create(object=self)
 
             if created:
-                count = Vote.objects.filter(object=self,
-                                            value= -1).count()
-                sum.down_pct = count
-                sum.save()
+                s.down_votes = Vote.objects.filter(object=self, value=-1).count()
+                s.up_votes = Vote.objects.filter(object=self, value=1).count()
+                s.save()
+            return s
 
-            return sum.down_votes
+        model.vote_summary = property(summary)
+        model.vote_model = Vote
+        model.vote_summary_model = VoteSummary
 
-        model.down_votes = property(down_votes)
-
-        def down_pct(self):
-            sum, created = VoteSummary.objects.get_or_create(object=self)
-
-            if created:
-                q = Vote.objects.filter(object=self)
-                total = q.count()
-                down = q.filter(value= -1).count()
-
-                sum.down_pct = 0 if not total else (float(down) / float(total)) * 100
-                sum.save()
-
-            return sum.down_pct
-
-        def up_votes(self):
-            sum, created = VoteSummary.objects.get_or_create(object=self)
-
-            if created:
-                count = Vote.objects.filter(object=self,
-                                            value=1).count()
-                sum.up_votes = count
-                sum.save()
-
-            return sum.up_votes
-
-        model.up_votes = property(up_votes)
-
-        def up_pct(self):
-            sum, created = VoteSummary.objects.get_or_create(object=self)
-
-            if created:
-                q = Vote.objects.filter(object=self)
-                total = q.count()
-                up = q.filter(value=1).count()
-
-                sum.up_pct = 0 if not total else (float(up) / float(total)) * 100
-                sum.save()
-
-            return sum.up_pct
-
-        def total_votes(self):
-            sum, created = VoteSummary.objects.get_or_create(object=self)
-
-            if created:
-                count = Vote.objects.filter(object=self).count()
-                sum.total_votes = count
-                sum.save()
-
-            return sum.total_votes
-
-        model.total_votes = property(total_votes)
