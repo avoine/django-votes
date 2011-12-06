@@ -141,6 +141,7 @@ class VotesField(object):
                 return VoteSummary
 
             def save(self, *args, **kwargs):
+                created = not self.id
                 # First save the vote
                 super(Vote, self).save(*args, **kwargs)
 
@@ -149,9 +150,13 @@ class VotesField(object):
 
                 if self.value == 1:
                     summary.up_votes += 1
+                    if not created:
+                        summary.down_votes -= 1
 
                 if self.value == -1:
                     summary.down_votes += 1
+                    if not created:
+                        summary.up_votes -= 1
 
                 summary.save()
 
@@ -181,7 +186,7 @@ class VotesField(object):
             s, created = VoteSummary.objects.get_or_create(object=self)
 
             if created:
-                s.down_votes = Vote.objects.filter(object=self, value=-1).count()
+                s.down_votes = Vote.objects.filter(object=self, value= -1).count()
                 s.up_votes = Vote.objects.filter(object=self, value=1).count()
                 s.save()
             return s
