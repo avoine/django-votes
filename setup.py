@@ -8,12 +8,12 @@ setup(
     long_description=open('README', 'r').read(),
     author='Maarten Timmerman, City Live nv',
     packages=find_packages('src'),
-    package_data={'django_votes': [
-                'static/*/*/*.js',
-                'static/*/*/*.css',
-                'static/*/*/*.png',
-                'templates/*/*.html'
-                ], },
+      # package_data={'django_votes': [
+      #             'static/*/*/*.js',
+      #             'static/*/*/*.css',
+      #             'static/*/*/*.png',
+      #             'templates/*/*.html'
+      #             ], },
     zip_safe=False, # Don't create egg files, Django cannot find templates in egg files.
     include_package_data=True,
     package_dir={'': 'src'},
