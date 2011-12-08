@@ -197,7 +197,7 @@ class VotesField(object):
             s, created = VoteSummary.objects.get_or_create(object=self)
 
             if created:
-                s.down_votes = Vote.objects.filter(object=self, value=-1).count()
+                s.down_votes = Vote.objects.filter(object=self, value= -1).count()
                 s.up_votes = Vote.objects.filter(object=self, value=1).count()
                 s.save()
             return s
