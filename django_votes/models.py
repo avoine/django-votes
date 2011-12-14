@@ -140,21 +140,31 @@ class VotesField(object):
             def get_summary_model(self):
                 return VoteSummary
 
-            def save(self, *args, **kwargs):
-                created = not self.id
+            @classmethod
+            def get_owner_model(self):
+                return model
 
-                # first update the summary
+            def save(self, *args, **kwargs):
+                """
+                Save vote, and update summary.
+                """
+                if self.id:
+                    last_value = Vote.objects.get(id=self.id).value
+                else:
+                    last_value = 0
+
+                # First update the summary
                 summary = self.object.vote_summary
+
+                if last_value == 1:
+                    summary.up_votes -= 1
+                if last_value == -1:
+                    summary.down_votes -= 1
 
                 if self.value == 1:
                     summary.up_votes += 1
-                    if not created:
-                        summary.down_votes -= 1
-
                 if self.value == -1:
                     summary.down_votes += 1
-                    if not created:
-                        summary.up_votes -= 1
 
                 summary.save()
 
