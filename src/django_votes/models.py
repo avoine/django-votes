@@ -142,10 +142,8 @@ class VotesField(object):
 
             def save(self, *args, **kwargs):
                 created = not self.id
-                # First save the vote
-                super(Vote, self).save(*args, **kwargs)
 
-                # Now update the summary
+                # first update the summary
                 summary = self.object.vote_summary
 
                 if self.value == 1:
@@ -159,6 +157,9 @@ class VotesField(object):
                         summary.up_votes -= 1
 
                 summary.save()
+
+                # then save the vote
+                super(Vote, self).save(*args, **kwargs)
 
         class VoteFieldDescriptor(object):
             def __get__(self, obj, objtype):
