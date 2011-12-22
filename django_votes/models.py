@@ -51,9 +51,11 @@ class VotesField(object):
 
             object = models.OneToOneField(model, verbose_name=_('object'))
             down_votes = models.PositiveIntegerField(default=0,
-                                                     verbose_name=_('down votes'))
+                                                     verbose_name=_('down votes'),
+                                                     null=False, blank=True)
             up_votes = models.PositiveIntegerField(default=0,
-                                                   verbose_name=_('up votes'))
+                                                   verbose_name=_('up votes'),
+                                                   null=False, blank=True)
             created_on = models.DateTimeField(auto_now_add=True, db_index=True,
                                               verbose_name=_('created on'),
                                               editable=False)
