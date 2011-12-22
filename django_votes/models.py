@@ -49,7 +49,7 @@ class VotesField(object):
 
             __metaclass__ = VoteSummaryMeta
 
-            object = models.ForeignKey(model, verbose_name=_('object'))
+            object = models.OneToOneField(model, verbose_name=_('object'))
             down_votes = models.PositiveIntegerField(default=0,
                                                      verbose_name=_('down votes'))
             up_votes = models.PositiveIntegerField(default=0,
