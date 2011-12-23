@@ -11,7 +11,7 @@ class Command(NoArgsCommand):
             m = models._vote_models[model_name]
 
             # Delete existing summaries
-            m.objects.all().delete()
+            m.get_summary_model().objects.all()
 
             # Regenerate summaries by querying every single item again
             for instance in m.get_owner_model().objects.all():
