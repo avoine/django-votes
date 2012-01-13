@@ -412,7 +412,7 @@ class RatingsField(object):
             if created:
                 count = Rating.objects.filter(object=self).count()
                 sum = Rating.objects.filter(object=self).aggregate(sum=Sum('value'))
-                s.rating_total = sum['sum'] | 0
+                s.rating_total = sum['sum'] if sum['sum'] else 0
                 s.rating_count = count
                 s.save()
 
