@@ -364,6 +364,7 @@ class RatingsField(object):
                 """
                 Save rating, and update summary.
                 """
+                
                 if self.id:
                     last_value = Rating.objects.get(id=self.id).value
                 else:
@@ -374,6 +375,8 @@ class RatingsField(object):
 
                 if last_value > 0:
                     summary.rating_total -= last_value
+                else:
+                    summary.rating_count += 1
 
                 summary.rating_total += self.value
 
