@@ -373,12 +373,30 @@ class RatingsField(object):
                 # First update the summary
                 summary = self.object.rating_summary
 
-                if last_value > 0:
+                if self.value == 0 and last_value > 0:
+                    # Canceling rating.
+                    
+                    # subtract old value
                     summary.rating_total -= last_value
-                else:
+                    # decrease count by 1
+                    summary.rating_count -= 1
+                elif self.value > 0 and last_value > 0:
+                    # Editing rating.
+                    
+                    # subtract old value
+                    summary.rating_total -= last_value
+                    # add new value
+                    summary.rating_total += self.value
+                elif self.value == 0 and last_value == 0:
+                    # Initiating rating record. don't do anything                    
+                    pass                    
+                elif self.value > 0 and last_value == 0:
+                    # New rating
+                    
+                    # add new value
+                    summary.rating_total += self.value
+                    # increase count by 1
                     summary.rating_count += 1
-
-                summary.rating_total += self.value
 
                 summary.save()
 
