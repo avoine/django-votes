@@ -18,6 +18,11 @@ def handle_rating_deleted(signal, sender, **kwargs):
     summary = rating.object.rating_summary
     summary.rating_total -= rating.value
     summary.rating_count -= 1
+    if summary.rating_count > 0:    
+        summary.rating = round(float(summary.rating_total) / float(summary.rating_count), 1)
+    else:
+        summary.rating = 0
+        
     summary.save()
 
 class VotesField(object):
@@ -273,21 +278,16 @@ class RatingsField(object):
             rating_total = models.PositiveIntegerField(default=0,
                                                        verbose_name=_('Rating total'),
                                                        null=False, blank=True)
+            rating = models.FloatField(default=0,
+                                       verbose_name=_('Rating'),
+                                       null=False, blank=True)
             created_on = models.DateTimeField(auto_now_add=True, db_index=True,
                                               verbose_name=_('created on'),
                                               editable=False)
             updated_on = models.DateTimeField(auto_now=True, db_index=True,
                                               verbose_name=_('updated on'),
                                               editable=False)
-
-            @property
-            def rating(self):
-                # Don't divide by zero
-                if self.rating_count > 0:
-                    return round(float(self.rating_total) / self.rating_count, 1)
-                else:
-                    return 0
-
+            
             class Meta:
                 ordering = ('object',)
                 verbose_name = '%s Rating Summary' % model._meta.object_name
@@ -398,6 +398,11 @@ class RatingsField(object):
                     # increase count by 1
                     summary.rating_count += 1
 
+                if summary.rating_count > 0:    
+                    summary.rating = round(float(summary.rating_total) / float(summary.rating_count), 1)
+                else:
+                    summary.rating = 0
+                    
                 summary.save()
 
                 # then save the vote
