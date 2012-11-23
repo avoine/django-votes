@@ -4,7 +4,7 @@ from django.utils.translation import (ugettext_lazy as _, ugettext)
 from django.contrib.auth.models import User
 from django.db.models.loading import get_model
 from django.db.models import signals, Sum
-from django.core.exceptions import DoesNotExist
+from django.core.exceptions import ObjectDoesNotExist
 
 _vote_models = { }
 _rating_models = { }
@@ -17,7 +17,7 @@ def handle_rating_deleted(signal, sender, **kwargs):
 
     try:
         summary = rating.object.rating_summary
-    except DoesNotExist, e:
+    except ObjectDoesNotExist, e:
         # This happens when a RatingSummary is going to be deleted, which
         # causes Rating to be deleted as well.
         pass
