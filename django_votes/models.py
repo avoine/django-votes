@@ -4,6 +4,7 @@ from django.utils.translation import (ugettext_lazy as _, ugettext)
 from django.contrib.auth.models import User
 from django.db.models.loading import get_model
 from django.db.models import signals, Sum
+from django.core.exceptions import DoesNotExist
 
 _vote_models = { }
 _rating_models = { }
@@ -12,18 +13,23 @@ def handle_rating_deleted(signal, sender, **kwargs):
     """
     When a rating is removed we need to update the summary aswell.
     """
-
     rating = kwargs['instance']
 
-    summary = rating.object.rating_summary
-    summary.rating_total -= rating.value
-    summary.rating_count -= 1
-    if summary.rating_count > 0:    
-        summary.rating = round(float(summary.rating_total) / float(summary.rating_count), 1)
+    try:
+        summary = rating.object.rating_summary
+    except DoesNotExist, e:
+        # This happens when a RatingSummary is going to be deleted, which
+        # causes Rating to be deleted as well.
+        pass
     else:
-        summary.rating = 0
-        
-    summary.save()
+        summary.rating_total -= rating.value
+        summary.rating_count -= 1
+        if summary.rating_count > 0:
+            summary.rating = round(float(summary.rating_total) / float(summary.rating_count), 1)
+        else:
+            summary.rating = 0
+
+        summary.save()
 
 class VotesField(object):
     """
